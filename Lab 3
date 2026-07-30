@@ -1,94 +1,32 @@
-import cv2
+import pandas as pd
 
-# Global state variables
-drawing = False
-shape_type = 'rectangle'  # Options: 'rectangle', 'circle', 'line'
-ix, iy = -1, -1
-shapes = []  # Stores all completed shapes: (type, start_point, end_point)
+# Load dataset
+data = pd.read_csv("workload_data.csv")
 
+print("Training Data:\n")
+print(data)
 
-def draw_shape(event, x, y, flags, param):
-    global ix, iy, drawing, shapes, shape_type
+# Initialize the most specific hypothesis
+hypothesis = ['0'] * (len(data.columns) - 1)
 
-    if event == cv2.EVENT_LBUTTONDOWN:
-        drawing = True
-        ix, iy = x, y
+print("\nInitial Hypothesis:")
+print(hypothesis)
 
-    elif event == cv2.EVENT_MOUSEMOVE:
-        if drawing:
-            # Current mouse position during drag
-            pass
+# Apply Find-S Algorithm
+for i, row in data.iterrows():
 
-    elif event == cv2.EVENT_LBUTTONUP:
-        drawing = False
-        # Save the finalized shape
-        shapes.append((shape_type, (ix, iy), (x, y)))
+    if row.iloc[-1] == "Yes":   # Consider only positive examples
 
+        for j in range(len(hypothesis)):
 
-def main():
-    global shape_type
+            if hypothesis[j] == '0':
+                hypothesis[j] = row.iloc[j]
 
-    # --- TASK 1: Load Video or Webcam ---
-    # Change '0' to a video path (e.g., "my_video.mp4") to load a video file instead.
-    video_source = 0  
-    cap = cv2.VideoCapture(video_source)
+            elif hypothesis[j] != row.iloc[j]:
+                hypothesis[j] = '?'
 
-    if not cap.isOpened():
-        print("Error: Could not open video source.")
-        return
+    print(f"\nAfter processing Workload {i+1}:")
+    print(hypothesis)
 
-    cv2.namedWindow('Interactive Camera')
-    cv2.setMouseCallback('Interactive Camera', draw_shape)
-
-    print("\n=== CONTROLS ===")
-    print("Press 'r' -> Draw Rectangles")
-    print("Press 'c' -> Draw Circles")
-    print("Press 'l' -> Draw Lines")
-    print("Press 'z' -> Clear all shapes")
-    print("Press 'q' -> Quit")
-
-    while True:
-        ret, frame = cap.read()
-
-        # Loop the video if loading a file and it reaches the end
-        if not ret:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            continue
-
-        # --- TASK 2: Render Geometric Shapes ---
-        for shape in shapes:
-            stype, p1, p2 = shape
-            if stype == 'rectangle':
-                cv2.rectangle(frame, p1, p2, (0, 255, 0), 2)
-            elif stype == 'circle':
-                # Calculate radius using distance formula
-                radius = int(((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5)
-                cv2.circle(frame, p1, radius, (255, 0, 0), 2)
-            elif stype == 'line':
-                cv2.line(frame, p1, p2, (0, 0, 255), 2)
-
-        # Show current shape mode on top-left of video screen
-        cv2.putText(frame, f"Mode: {shape_type.upper()}", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-
-        cv2.imshow('Interactive Camera', frame)
-
-        # Key press handler
-        key = cv2.waitKey(20) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('r'):
-            shape_type = 'rectangle'
-        elif key == ord('c'):
-            shape_type = 'circle'
-        elif key == ord('l'):
-            shape_type = 'line'
-        elif key == ord('z'):
-            shapes.clear()
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-
-if __name__ == "__main__":
-    main()
+print("\nFinal Hypothesis:")
+print(hypothesis)
