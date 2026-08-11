@@ -1,0 +1,112 @@
+# Candidate Elimination Algorithm
+
+# Training dataset
+data = [
+    ["Sunny", "Warm", "Normal", "Strong", "Yes"],   # D1
+    ["Sunny", "Warm", "High", "Strong", "Yes"],     # D2
+    ["Rainy", "Cold", "High", "Strong", "No"],      # D3
+    ["Sunny", "Warm", "High", "Weak", "Yes"]        # D4
+]
+
+attributes = ["Sky", "AirTemp", "Humidity", "Wind"]
+
+# Most Specific Boundary
+S = ["Ø", "Ø", "Ø", "Ø"]
+
+# Most General Boundary
+G = [["?", "?", "?", "?"]]
+
+
+def covers(hypothesis, instance):
+    """Check whether a hypothesis covers an instance."""
+    for h, value in zip(hypothesis, instance):
+        if h != "?" and h != value:
+            return False
+    return True
+
+
+def generalize_S(S, instance):
+    """Generalize S to cover a positive instance."""
+    for i in range(len(S)):
+        if S[i] == "Ø":
+            S[i] = instance[i]
+        elif S[i] != instance[i]:
+            S[i] = "?"
+    return S
+
+
+def specialize_G(G, instance, S):
+    """Specialize G to exclude a negative instance."""
+    new_G = []
+
+    for g in G:
+        for i in range(len(g)):
+            if g[i] == "?":
+                # Use S value for specialization if it is
+                # different from the negative instance.
+                if S[i] != "?" and S[i] != "Ø" and S[i] != instance[i]:
+                    new_h = g.copy()
+                    new_h[i] = S[i]
+
+                    if covers(S, new_h) or True:
+                        new_G.append(new_h)
+
+    return new_G
+
+
+def remove_duplicates(boundary):
+    result = []
+    for h in boundary:
+        if h not in result:
+            result.append(h)
+    return result
+
+
+print("Candidate Elimination Algorithm")
+print("-" * 50)
+
+for step, row in enumerate(data, start=1):
+
+    instance = row[:4]
+    target = row[4]
+
+    print(f"\nAfter processing D{step}:")
+    print("Instance:", instance)
+    print("Target:", target)
+
+    if target == "Yes":
+
+        # Generalize S
+        S = generalize_S(S, instance)
+
+        # Remove G hypotheses that do not cover positive instance
+        G = [g for g in G if covers(g, instance)]
+
+    else:
+
+        # Specialize G to exclude negative instance
+        G = specialize_G(G, instance, S)
+
+        # Keep only hypotheses that are more general than S
+        # and do not cover the negative instance
+        G = [
+            g for g in G
+            if covers(g, instance) is False
+        ]
+
+    G = remove_duplicates(G)
+
+    print("S =", S)
+    print("G =", G)
+
+
+print("\n" + "=" * 50)
+print("FINAL VERSION SPACE BOUNDARIES")
+print("=" * 50)
+
+print("Specific Boundary (S):")
+print(S)
+
+print("\nGeneral Boundary (G):")
+for g in G:
+    print(g)
