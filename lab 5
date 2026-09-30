@@ -1,0 +1,128 @@
+"""Build a decision tree for the Play Tennis data using ID3."""
+
+from collections import Counter
+from math import log2
+from pathlib import Path
+import webbrowser
+
+
+DATA = [
+	{"Day": "D1", "Outlook": "Sunny", "Temperature": "Hot", "Humidity": "High", "Wind": "Weak", "Play Tennis": "No"},
+	{"Day": "D2", "Outlook": "Sunny", "Temperature": "Hot", "Humidity": "High", "Wind": "Strong", "Play Tennis": "No"},
+	{"Day": "D3", "Outlook": "Overcast", "Temperature": "Hot", "Humidity": "High", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D4", "Outlook": "Rain", "Temperature": "Mild", "Humidity": "High", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D5", "Outlook": "Rain", "Temperature": "Cool", "Humidity": "Normal", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D6", "Outlook": "Rain", "Temperature": "Cool", "Humidity": "Normal", "Wind": "Strong", "Play Tennis": "No"},
+	{"Day": "D7", "Outlook": "Overcast", "Temperature": "Cool", "Humidity": "Normal", "Wind": "Strong", "Play Tennis": "Yes"},
+	{"Day": "D8", "Outlook": "Sunny", "Temperature": "Mild", "Humidity": "High", "Wind": "Weak", "Play Tennis": "No"},
+	{"Day": "D9", "Outlook": "Sunny", "Temperature": "Cool", "Humidity": "Normal", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D10", "Outlook": "Rain", "Temperature": "Mild", "Humidity": "Normal", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D11", "Outlook": "Sunny", "Temperature": "Mild", "Humidity": "Normal", "Wind": "Strong", "Play Tennis": "Yes"},
+	{"Day": "D12", "Outlook": "Overcast", "Temperature": "Mild", "Humidity": "High", "Wind": "Strong", "Play Tennis": "Yes"},
+	{"Day": "D13", "Outlook": "Overcast", "Temperature": "Hot", "Humidity": "Normal", "Wind": "Weak", "Play Tennis": "Yes"},
+	{"Day": "D14", "Outlook": "Rain", "Temperature": "Mild", "Humidity": "High", "Wind": "Strong", "Play Tennis": "No"},
+]
+
+TARGET = "Play Tennis"
+FEATURES = ["Outlook", "Temperature", "Humidity", "Wind"]
+
+
+def entropy(rows):
+	"""Return the entropy of the target values in rows."""
+	counts = Counter(row[TARGET] for row in rows)
+	total = len(rows)
+	return -sum((count / total) * log2(count / total) for count in counts.values())
+
+
+def information_gain(rows, feature):
+	"""Return the information gain from splitting rows on feature."""
+	total_entropy = entropy(rows)
+	weighted_entropy = 0.0
+
+	for value in sorted({row[feature] for row in rows}):
+		subset = [row for row in rows if row[feature] == value]
+		weighted_entropy += len(subset) / len(rows) * entropy(subset)
+
+	return total_entropy - weighted_entropy
+
+
+def majority_class(rows):
+	"""Return the most common target value, used for a fallback leaf."""
+	return Counter(row[TARGET] for row in rows).most_common(1)[0][0]
+
+
+def build_tree(rows, features):
+	"""Build and return an ID3 tree represented by nested dictionaries."""
+	labels = {row[TARGET] for row in rows}
+	if len(labels) == 1:
+		return next(iter(labels))
+	if not features:
+		return majority_class(rows)
+
+	best_feature = max(features, key=lambda feature: information_gain(rows, feature))
+	tree = {best_feature: {}}
+	remaining_features = [feature for feature in features if feature != best_feature]
+
+	for value in sorted({row[best_feature] for row in rows}):
+		subset = [row for row in rows if row[best_feature] == value]
+		tree[best_feature][value] = build_tree(subset, remaining_features)
+
+	return tree
+
+
+def svg_tree(tree, x, y, gap=260, level=0):
+	"""Return SVG markup for one decision-tree node and its descendants."""
+	if isinstance(tree, str):
+		return f'<g><ellipse cx="{x}" cy="{y}" rx="58" ry="30" class="leaf" />' \
+			f'<text x="{x}" y="{y + 6}" class="leaf-text">{tree}</text></g>'
+
+	feature = next(iter(tree))
+	branches = list(tree[feature].items())
+	parts = [f'<g><rect x="{x - 82}" y="{y - 32}" width="164" height="64" class="decision" />',
+			 f'<text x="{x}" y="{y + 6}" class="decision-text">{feature}</text></g>']
+	child_y = y + 150
+	first_x = x - (len(branches) - 1) * gap / 2
+	for index, (value, subtree) in enumerate(branches):
+		child_x = first_x + index * gap
+		parts.append(f'<line x1="{x}" y1="{y + 32}" x2="{child_x}" y2="{child_y - 30}" class="edge" />')
+		label_x = (x + child_x) / 2
+		label_y = (y + child_y) / 2
+		parts.append(f'<text x="{label_x}" y="{label_y}" class="branch-label">{value}</text>')
+		parts.append(svg_tree(subtree, child_x, child_y, max(150, gap - 40), level + 1))
+	return "".join(parts)
+
+
+def show_tree(tree):
+	"""Create an SVG decision tree in HTML and open it in the browser."""
+	html = f'''<!doctype html>
+<html><head><meta charset="utf-8"><title>ID3 Decision Tree</title>
+<style>
+body {{ margin: 0; background: #f8fafc; font-family: "Segoe UI", sans-serif; color: #0f172a; }}
+.page {{ min-width: 1050px; padding: 30px 40px; }}
+h1 {{ text-align: center; margin: 0 0 8px; font-size: 28px; }}
+.subtitle {{ text-align: center; color: #64748b; margin-bottom: 25px; }}
+svg {{ display: block; margin: auto; background: white; border: 1px solid #cbd5e1; border-radius: 12px; }}
+.decision {{ fill: #dbeafe; stroke: #2563eb; stroke-width: 3; }}
+.leaf {{ fill: #dcfce7; stroke: #16803c; stroke-width: 3; }}
+.decision-text, .leaf-text {{ text-anchor: middle; font-size: 17px; font-weight: 700; }}
+.decision-text {{ fill: #1e3a8a; }} .leaf-text {{ fill: #14532d; }}
+.edge {{ stroke: #64748b; stroke-width: 2.5; }}
+.branch-label {{ text-anchor: middle; font-size: 15px; font-weight: 700; fill: #334155; }}
+.legend {{ text-align: center; margin-top: 18px; color: #475569; }}
+.blue, .green {{ display: inline-block; padding: 8px 16px; margin: 0 8px; border-radius: 6px; }}
+.blue {{ background: #dbeafe; border: 1px solid #2563eb; }} .green {{ background: #dcfce7; border: 1px solid #16803c; }}
+</style></head><body><main class="page">
+<h1>ID3 Decision Tree: Play Tennis</h1>
+<div class="subtitle">Decision attributes and predicted target values</div>
+<svg width="1050" height="560" viewBox="0 0 1050 560">{svg_tree(tree, 525, 70)}</svg>
+<div class="legend"><span class="blue">Decision attribute</span><span class="green">Prediction</span></div>
+</main></body></html>'''
+	output_path = Path(__file__).with_name("decision_tree.html")
+	output_path.write_text(html, encoding="utf-8")
+	webbrowser.open(output_path.resolve().as_uri())
+	print(f"Visual tree opened in your browser: {output_path}")
+
+
+if __name__ == "__main__":
+	decision_tree = build_tree(DATA, FEATURES)
+	show_tree(decision_tree)
